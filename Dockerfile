@@ -1,39 +1,16 @@
-FROM ekidd/rust-musl-builder:stable as builder
+# Use the official Rust image.
+# https://hub.docker.com/_/rust
+FROM rust
 
-RUN USER=root cargo new --bin cloud-run-sampler
-WORKDIR ./cloud-run-sampler
-COPY ./Cargo.lock ./Cargo.lock
-COPY ./Cargo.toml ./Cargo.toml
-RUN cargo build --release
-RUN rm src/*.rs
+# Copy local code to the container image.
+WORKDIR /usr/src/app
+COPY . .
 
-ADD . ./
-
-RUN rm ./target/x86_64-unknown-linux-musl/release/deps/cloud_run_sampler*
+# Install production dependencies and build a release artifact.
 RUN cargo build --release
 
+EXPOSE 8080
 
-FROM alpine:latest
+# Run the web service on container startup.
 
-ARG APP=/usr/src/app
-
-EXPOSE 8000
-
-ENV TZ=Etc/UTC \
-    APP_USER=appuser
-
-RUN addgroup -S $APP_USER \
-    && adduser -S -g $APP_USER $APP_USER
-
-RUN apk update \
-    && apk add --no-cache ca-certificates tzdata \
-    && rm -rf /var/cache/apk/*
-
-COPY --from=builder /home/rust/src/cloud-run-sampler/target/x86_64-unknown-linux-musl/release/cloud-run-sampler ${APP}/cloud-run-sampler
-
-RUN chown -R $APP_USER:$APP_USER ${APP}
-
-USER $APP_USER
-WORKDIR ${APP}
-
-CMD ["./cloud-run-sampler"]
+ENTRYPOINT ["target/release/cloud-run-sampler"]
